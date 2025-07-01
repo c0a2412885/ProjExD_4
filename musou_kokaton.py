@@ -300,6 +300,24 @@ class Shield(pg.sprite.Sprite):
 
 
 
+class gravity(pg.sprite.Sprite):
+    """
+    重力場を全画面に表示するクラス
+    """
+    def __init__(self, life: int):
+        super().__init__()
+        self.image = pg.Surface((WIDTH, HEIGHT))
+        self.image.fill((0,0,0))
+        self.image.set_alpha(128)
+        self.rect = self.image.get_rect()
+        self.life = life
+        
+    def update(self):
+        self.life -= 1
+        if self.life < 0:
+            self.kill()
+
+
 def main():
     pg.display.set_caption("真！こうかとん無双")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
@@ -312,6 +330,7 @@ def main():
     emys = pg.sprite.Group()
     emp_effect = None
     shields = pg.sprite.Group()
+    gravitys = pg.sprite.Group()
 
     tmr = 0
     clock = pg.time.Clock()
@@ -325,6 +344,9 @@ def main():
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_SPACE:
                     beams.add(Beam(bird))
+                if event.key == pg.K_RETURN and score.value >= 200:
+                    gravitys.add(gravity(400))
+                    score.value -= 200
                 if event.key == pg.K_e and score.value >= 20 and emp_effect is None:
                     emp_effect = EMP(emys, bombs, screen)
                     score.value -= 20
@@ -353,6 +375,17 @@ def main():
             if emy.state == "stop" and tmr % emy.interval == 0:
                 bombs.add(Bomb(emy, bird))
 
+        if len(gravitys) > 0:
+                    for bomb in bombs:
+                        exps.add(Explosion(bomb, 30))
+                        score.value += 1
+                    bombs.empty()
+
+                    for emy in emys:
+                        exps.add(Explosion(emy, 50))
+                        score.value += 10
+                    emys.empty()
+
         for emy in pg.sprite.groupcollide(emys, beams, True, True).keys():
             exps.add(Explosion(emy, 100))  # 爆発エフェクト
             score.value += 10  # 10点アップ
@@ -380,9 +413,11 @@ def main():
 
 
         bird.update(key_lst, screen)
+        gravitys.update()
+        gravitys.draw(screen)
         beams.update()
         beams.draw(screen)
-        emys.update()
+        emys.update() 
         emys.draw(screen)
         bombs.update()
         bombs.draw(screen)
