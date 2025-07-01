@@ -3,7 +3,7 @@ import os
 import random
 import sys
 import time
-import pygame as pg
+import pygame as pg 
 
 
 WIDTH = 1100  # ゲームウィンドウの幅
@@ -28,9 +28,6 @@ def check_bound(obj_rct: pg.Rect) -> tuple[bool, bool]:
 def calc_orientation(org: pg.Rect, dst: pg.Rect) -> tuple[float, float]:
     """
     orgから見て，dstがどこにあるかを計算し，方向ベクトルをタプルで返す
-    引数1 org：爆弾SurfaceのRect
-    引数2 dst：こうかとんSurfaceのRect
-    戻り値：orgから見たdstの方向ベクトルを表すタプル
     """
     x_diff, y_diff = dst.centerx-org.centerx, dst.centery-org.centery
     norm = math.sqrt(x_diff**2+y_diff**2)
@@ -58,14 +55,14 @@ class Bird(pg.sprite.Sprite):
         img0 = pg.transform.rotozoom(pg.image.load(f"fig/{num}.png"), 0, 0.9)
         img = pg.transform.flip(img0, True, False)  # デフォルトのこうかとん
         self.imgs = {
-            (+1, 0): img,  # 右
-            (+1, -1): pg.transform.rotozoom(img, 45, 0.9),  # 右上
-            (0, -1): pg.transform.rotozoom(img, 90, 0.9),  # 上
-            (-1, -1): pg.transform.rotozoom(img0, -45, 0.9),  # 左上
-            (-1, 0): img0,  # 左
-            (-1, +1): pg.transform.rotozoom(img0, 45, 0.9),  # 左下
-            (0, +1): pg.transform.rotozoom(img, -90, 0.9),  # 下
-            (+1, +1): pg.transform.rotozoom(img, -45, 0.9),  # 右下
+            (+1, 0): img,  #右
+            (+1, -1): pg.transform.rotozoom(img, 45, 0.9),  #右上
+            (0, -1): pg.transform.rotozoom(img, 90, 0.9),  #上
+            (-1, -1): pg.transform.rotozoom(img0, -45, 0.9),  #左上
+            (-1, 0): img0,
+            (-1, +1): pg.transform.rotozoom(img0, 45, 0.9),  #左下
+            (0, +1): pg.transform.rotozoom(img, -90, 0.9),  #下
+            (+1, +1): pg.transform.rotozoom(img, -45, 0.9),  #右下
         }
         self.dire = (+1, 0)
         self.image = self.imgs[self.dire]
@@ -122,14 +119,14 @@ class Bomb(pg.sprite.Sprite):
         引数2 bird：攻撃対象のこうかとん
         """
         super().__init__()
-        rad = random.randint(10, 50)  # 爆弾円の半径：10以上50以下の乱数
+        rad = random.randint(10, 50)   # 爆弾円の半径：10以上50以下の乱数
         self.image = pg.Surface((2*rad, 2*rad))
         color = random.choice(__class__.colors)  # 爆弾円の色：クラス変数からランダム選択
         pg.draw.circle(self.image, color, (rad, rad), rad)
         self.image.set_colorkey((0, 0, 0))
         self.rect = self.image.get_rect()
         # 爆弾を投下するemyから見た攻撃対象のbirdの方向を計算
-        self.vx, self.vy = calc_orientation(emy.rect, bird.rect)  
+        self.vx, self.vy = calc_orientation(emy.rect, bird.rect)
         self.rect.centerx = emy.rect.centerx
         self.rect.centery = emy.rect.centery+emy.rect.height//2
         self.speed = 6
@@ -207,7 +204,7 @@ class Enemy(pg.sprite.Sprite):
     敵機に関するクラス
     """
     imgs = [pg.image.load(f"fig/alien{i}.png") for i in range(1, 4)]
-    
+
     def __init__(self):
         super().__init__()
         self.image = pg.transform.rotozoom(random.choice(__class__.imgs), 0, 0.8)
@@ -249,6 +246,35 @@ class Score:
         screen.blit(self.image, self.rect)
 
 
+class EMP:
+    """
+    電磁パルス効果を処理するクラス
+    """
+    def __init__(self, enemy_group: pg.sprite.Group, bomb_group: pg.sprite.Group, screen: pg.Surface):
+        self.screen = screen
+        self.timer = 3
+        self.active = True
+
+        for enemy in enemy_group:
+            enemy.interval = float("inf")
+            enemy.image = pg.transform.laplacian(enemy.image)
+
+        for bomb in bomb_group:
+            bomb.speed /= 2
+            bomb.inactive = True
+
+    def update(self):
+        self.timer -= 1
+        if self.timer <= 0:
+            self.active = False
+
+    def draw(self):
+        flash = pg.Surface((WIDTH, HEIGHT))
+        flash.set_alpha(100)
+        flash.fill((255, 255, 0))
+        self.screen.blit(flash, (0, 0))
+
+
 class Shield(pg.sprite.Sprite):
     """
     シールドを発生させるクラス
@@ -279,12 +305,12 @@ def main():
     screen = pg.display.set_mode((WIDTH, HEIGHT))
     bg_img = pg.image.load(f"fig/pg_bg.jpg")
     score = Score()
-
     bird = Bird(3, (900, 400))
     bombs = pg.sprite.Group()
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
+    emp_effect = None
     shields = pg.sprite.Group()
 
     tmr = 0
@@ -294,10 +320,14 @@ def main():
         key_lst = pg.key.get_pressed()
         for event in pg.event.get():
             if event.type == pg.QUIT:
-                return 0
+                return
             
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    beams.add(Beam(bird))
+                if event.key == pg.K_e and score.value >= 20 and emp_effect is None:
+                    emp_effect = EMP(emys, bombs, screen)
+                    score.value -= 20
 
             if event.type == pg.KEYDOWN and event.key == pg.K_RSHIFT and score.value >= 100:
                 bird.state = "hyper"
@@ -309,15 +339,21 @@ def main():
                 score.value-=50
         screen.blit(bg_img, [0, 0])
 
-        if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
+        if emp_effect:
+            emp_effect.update()
+            emp_effect.draw()
+            if not emp_effect.active:
+                emp_effect = None
+
+        if tmr % 200 == 0:  # 200フレームに1回，敵機を出現させる
             emys.add(Enemy())
 
         for emy in emys:
-            if emy.state == "stop" and tmr%emy.interval == 0:
-                # 敵機が停止状態に入ったら，intervalに応じて爆弾投下
+            # 敵機が停止状態に入ったら，intervalに応じて爆弾投下
+            if emy.state == "stop" and tmr % emy.interval == 0:
                 bombs.add(Bomb(emy, bird))
 
-        for emy in pg.sprite.groupcollide(emys, beams, True, True).keys():  # ビームと衝突した敵機リスト
+        for emy in pg.sprite.groupcollide(emys, beams, True, True).keys():
             exps.add(Explosion(emy, 100))  # 爆発エフェクト
             score.value += 10  # 10点アップ
             bird.change_img(6, screen)  # こうかとん喜びエフェクト
@@ -327,6 +363,8 @@ def main():
             score.value += 1  # 1点アップ
 
         for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
+            if hasattr(bomb, "inactive") and bomb.inactive:
+                continue
             if bird.state == "hyper":
                 exps.add(Explosion(bomb, 50))
                 score.value += 1
@@ -363,3 +401,4 @@ if __name__ == "__main__":
     main()
     pg.quit()
     sys.exit()
+    
